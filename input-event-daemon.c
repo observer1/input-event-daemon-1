@@ -642,6 +642,8 @@ void daemon_start_listener() {
     struct input_event event;
     struct timeval tv, tv_start, tv_end;
     struct termios monitoring_terminal;
+	int onError = 0;
+Ugly:
 
     /* ignored forked processes */
     signal(SIGCHLD, SIG_IGN);
@@ -653,8 +655,14 @@ void daemon_start_listener() {
         if(conf.listen_fd[i] < 0) {
             fprintf(stderr, PROGRAM": open(%s): %s\n",
                 conf.listen[i], strerror(errno));
-            exit(EXIT_FAILURE);
+            /*if(onError = 0)
+	            exit(EXIT_FAILURE);*/
+//	         else {
+	         	sleep(1);
+	         	goto Ugly;
+	//         }
         }
+        onError = 0;
         FD_SET(conf.listen_fd[i], &initial_fdset);
         ioctl(conf.listen_fd[i], EVIOCGSW(sizeof(sw_states)), &sw_states);
         for (n=0; n < SW_MAX; n++) {
@@ -729,16 +737,30 @@ void daemon_start_listener() {
             idle_time = 0;
         }
 
+		onError = 0;
+		int errFD = 0;
         for(i=0; i<fd_len; i++) {
             if(FD_ISSET(conf.listen_fd[i], &fdset)) {
-                if(read(conf.listen_fd[i], &event, sizeof(event)) < 0) {
+                if((onError = read(conf.listen_fd[i], &event, sizeof(event))) < 0) {
                     fprintf(stderr, PROGRAM": read(%s): %s\n",
                         conf.listen[i], strerror(errno));
+                        errFD = i;
                     break;
                 }
                 input_parse_event(&event, conf.listen[i]);
             }
         }
+		if(onError < 0) {
+			//FD_ZERO(&initial_fdset);
+			sleep(1);
+			goto Ugly;
+			/*conf.listen_fd[errFD] = open(conf.listen[errFD], O_RDONLY);
+		    if(conf.listen_fd[errFD] < 0) {
+		        fprintf(stderr, PROGRAM": open(%s): %s\n",
+		            conf.listen[errFD], strerror(errno));
+		    }
+	        FD_SET(conf.listen_fd[errFD], &initial_fdset);*/
+		}
     }
 }
 
